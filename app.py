@@ -1,6 +1,7 @@
 # 프래임워크 로드
 from flask import Flask, request, render_template, url_for
 import pandas as pd
+import invest
 
 
 # Flask Class 생성
@@ -9,7 +10,7 @@ app = Flask(__name__)
 # 유저가 어떠 종목, 투자기간, 투자 전략 방식을 입력할 수 있는 
 # 페이지를 보여주는 api 생성
 @app.route('/invest')
-def invest() :
+def first() :
     return render_template('/invest.html')
 
 # 대쉬보드 페이지를 보여주는 api 생성
@@ -36,7 +37,7 @@ def dashboard() :
     # class 생성
     invest_class = invest.Invest(df,
                                 _col = 'Close',
-                                _start = _input_time)
+                                _start = input_time)
     # input_type을 기준으로 class의 함수를 호출
     if input_type =='bnh':
         result = invest_class.buyandhold()
@@ -44,20 +45,29 @@ def dashboard() :
         result = invest_class.bollinger()
     elif input_type == 'mmt':
         result = invest_class.momentum()
-    # 인덱스 초기화
-    result.reset_index(inplace = True)
+    
     # 특정 컬럼만 필터
-    result = result[['Date', 'Close', 'trade', 'rtn','acc_rtn']]
+    result = result[['Close', 'trade', 'rtn','acc_rtn']]
+    # 특정 컬럼을 생성
+    result['ym'] = result.index.strftime('%Y-%m')
+    # 테이블을 정제
+    result = pd.concat(
+        [
+            result.groupby('ym')[['Close','trade','acc_rtn']].max(),
+            result.groupby('ym')[['rtn']].mean()
+        ],axis =1 
+    )
+    result.reset_index(inplace= True)
     # 컬럼의 이름을 변경
-    result.colimns = ['시간','종가','보유내역','일별 수익률','누적 수익률']
+    result.columns = ['시간','종가','보유내역','누적 수익률','일별 수익률']
     # 컬럼들의 이름을 리스트로 생성
     cols_list = list(result.columns)
     # 테이블에 데이터
-    dict_data = result.to_dict(oreint = 'records')
+    dict_data = result.to_dict(orient = 'records')
     # x축 데이터
     x_data = list(result['시간'])
     # y축 데이터
-    y_data = list(result[' 일별 수익률'])
+    y_data = list(result['일별 수익률'])
     y1_data = list(result['누적 수익률'])
     return render_template('/dashboard.html',
                         table_cols = cols_list,
